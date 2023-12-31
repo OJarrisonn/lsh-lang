@@ -1,0 +1,55 @@
+program = { SOI ~ expr ~ EOI}
+
+expr = {
+    "(" ~ ( (identifier | macro_identifier | operator) ~ (expr)*
+        | expr ~ operator ~ expr
+        | list
+        | block
+        | lambda
+        | piping 
+        | call
+        | if
+    ) ~ ")"
+    | term
+}
+
+term = { identifier | literal | list }
+
+literal = { number | path | string | bool }
+
+identifier = @{(!reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?) }
+macro_identifier = @{"@" ~ (('a'..'z') ~ ('a'..'z'| '0'..'9' | "-")* | operator)}
+operator = @{
+    !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | ":" | "&")+
+}
+
+reserved_operators = {";" | "&" | "->" | "->>" | ":" | "?"}
+reserved_word = {"true" | "false" }
+
+list = { "[" ~ expr* ~ "]" }
+
+block = { (";" ~ expr)+ }
+
+lambda = { "&" ~ list ~ expr+ }
+
+piping = {piping_start | piping_end}
+
+piping_start = { "->" ~ !">" ~ expr* }
+piping_end = { "->>" ~ expr*}
+
+call = { ":" ~ identifier ~ expr*}
+
+if = {"?" ~ expr ~ expr ~ expr}
+
+number = {float | integer}
+float = @{integer? ~ "." ~ integer | integer ~ "." ~ integer?}
+integer = @{ASCII_DIGIT+}
+
+string = @{"\"" ~ (!"\"" ~ ANY)* ~ "\""}
+path = @{"'" ~ (!"'" ~ ANY)* ~ "'"}
+
+bool = {true | false}
+true = {"true"}
+false = {"false"}
+
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
