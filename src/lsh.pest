@@ -1,11 +1,12 @@
 expr = {
     call
   | list
-  | lambda
+  | function
   | macro
-  | identifier
   | macro_identifier
+  | identifier
   | data_list
+  | macro_remainder
   | float
   | integer
   | string
@@ -20,16 +21,18 @@ identifier = @{
 
 macro_identifier = @{ "@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z' | '0'..'9' | "-")*) }
 
-reserved_word      = { bool | nil }
-reserved_operators = { "&" | "@" }
+reserved_word      = { bool | nil | "func" | "macro"}
+reserved_operators = { macro_remainder | "@" }
 
 list       = { "(" ~ expr* ~ ")" }
 data_list  = { "[" ~ expr* ~ "]" }
 ident_list = { "(" ~ identifier* ~ ")" }
+macro_remainder = {"..."}
 
-call   = { "(" ~ (identifier | macro_identifier) ~ expr* ~ ")" }
-lambda = { "(" ~ "&" ~ ident_list ~ list ~ ")" }
-macro  = { "(" ~ "@" ~ ident_list ~ list ~ ")" }
+
+call   = { "(" ~ (macro_identifier | identifier) ~ expr* ~ ")" }
+function = { "(" ~ "func" ~ ident_list ~ list ~ ")" }
+macro  = { "(" ~ "macro" ~ ident_list ~ list ~ ")" }
 
 float   = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ | ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT*? }
 integer = @{ ASCII_DIGIT+ }
