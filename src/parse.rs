@@ -22,7 +22,7 @@ pub fn parse<'a>(source: &'a str) -> Result<Expression, pest::error::Error<Rule>
 
     let pairs = crude_parse.expect("Err() got treated before");
     
-    let expr = Expression::DataList(
+    let expr = Expression::List(
         pairs.map(|p| Expression::from(p))
             .collect());
 
