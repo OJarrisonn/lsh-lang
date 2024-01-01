@@ -1,52 +1,36 @@
 program = { SOI ~ expr ~ EOI}
 
 expr = {
-    "(" ~ ( (identifier | macro_identifier | operator) ~ (expr)*
-        | expr ~ operator ~ expr
-        | list
-        | block
-        | lambda
-        | piping 
-        | call
-        | if
-    ) ~ ")"
-    | term
+    call
+    | lambda
+    | macro 
+    | identifier
+    | float
+    | integer
+    | string
+    | bool
 }
 
-term = { identifier | literal | list }
+identifier = @{ ( !reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?) 
+              | !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | "&" | "@")+ }
 
-literal = { number | path | string | bool }
+macro_identifier = @{"@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z'| '0'..'9' | "-")* )}
 
-identifier = @{(!reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?) }
-macro_identifier = @{"@" ~ (('a'..'z') ~ ('a'..'z'| '0'..'9' | "-")* | operator)}
-operator = @{
-    !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | ":" | "&")+
-}
-
-reserved_operators = {";" | "&" | "->" | "->>" | ":" | "?"}
 reserved_word = {"true" | "false" }
+reserved_operators = {"&" | "@"}
 
-list = { "[" ~ expr* ~ "]" }
+list = { "(" ~ expr* ~ ")"}
+data_list = { "[" ~ expr* ~ "]" }
+ident_list = { "(" ~ identifier* ~ ")" }
 
-block = { (";" ~ expr)+ }
+call = { "(" ~ (identifier | operator | macro_identifier) ~ expr* ~ ")" }
+lambda = { "(" ~ "&" ~ ident_list ~ list ~ ")" }
+macro = { "(" ~ "@" ~ ident_list ~ list ~ ")" }
 
-lambda = { "&" ~ list ~ expr+ }
-
-piping = {piping_start | piping_end}
-
-piping_start = { "->" ~ !">" ~ expr* }
-piping_end = { "->>" ~ expr*}
-
-call = { ":" ~ identifier ~ expr*}
-
-if = {"?" ~ expr ~ expr ~ expr}
-
-number = {float | integer}
-float = @{integer? ~ "." ~ integer | integer ~ "." ~ integer?}
+float = @{ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ | ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT*?}
 integer = @{ASCII_DIGIT+}
 
 string = @{"\"" ~ (!"\"" ~ ANY)* ~ "\""}
-path = @{"'" ~ (!"'" ~ ANY)* ~ "'"}
 
 bool = {true | false}
 true = {"true"}
