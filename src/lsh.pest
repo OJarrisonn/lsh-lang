@@ -9,6 +9,7 @@ expr = {
     | integer
     | string
     | bool
+    | nil
 }
 
 identifier = @{ ( !reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?) 
@@ -16,7 +17,7 @@ identifier = @{ ( !reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?
 
 macro_identifier = @{"@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z'| '0'..'9' | "-")* )}
 
-reserved_word = {"true" | "false" }
+reserved_word = {bool | nil}
 reserved_operators = {"&" | "@"}
 
 list = { "(" ~ expr* ~ ")"}
@@ -35,5 +36,6 @@ string = @{"\"" ~ (!"\"" ~ ANY)* ~ "\""}
 bool = {true | false}
 true = {"true"}
 false = {"false"}
+nil = {"nil"}
 
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
