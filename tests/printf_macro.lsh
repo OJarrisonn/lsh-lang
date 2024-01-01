@@ -1,0 +1,10 @@
+(
+    #[
+        Sample macro for printf
+        Takes a list of expressions and call print for each
+    ]#
+  (@def @printf (@ (e+) (map print [e+])))
+
+  (@def name "Jorge Harrisonn")
+  (@printf "Hello! " "My name is " name ". Nice to meet you!") # Just testing
+)

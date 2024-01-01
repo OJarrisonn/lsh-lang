@@ -1,0 +1,3 @@
+(@def path (@concat path [(@format home "/bin")])) # Adds ~/bin to the path
+
+(@def prompt (@format user "@" host ":" folder))
