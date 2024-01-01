@@ -1,41 +1,45 @@
-program = { SOI ~ expr ~ EOI}
-
 expr = {
     call
-    | lambda
-    | macro 
-    | identifier
-    | float
-    | integer
-    | string
-    | bool
-    | nil
+  | list
+  | lambda
+  | macro
+  | identifier
+  | macro_identifier
+  | data_list
+  | float
+  | integer
+  | string
+  | bool
+  | nil
 }
 
-identifier = @{ ( !reserved_word ~ 'a'..'z' ~ ('a'..'z'| '0'..'9' | "-")* ~ "?"?) 
-              | !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | "&" | "@")+ }
+identifier = @{
+    (!reserved_word ~ 'a'..'z' ~ ('a'..'z' | '0'..'9' | "-")* ~ "?"?)
+  | !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | "&" | "@")+
+}
 
-macro_identifier = @{"@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z'| '0'..'9' | "-")* )}
+macro_identifier = @{ "@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z' | '0'..'9' | "-")*) }
 
-reserved_word = {bool | nil}
-reserved_operators = {"&" | "@"}
+reserved_word      = { bool | nil }
+reserved_operators = { "&" | "@" }
 
-list = { "(" ~ expr* ~ ")"}
-data_list = { "[" ~ expr* ~ "]" }
+list       = { "(" ~ expr* ~ ")" }
+data_list  = { "[" ~ expr* ~ "]" }
 ident_list = { "(" ~ identifier* ~ ")" }
 
-call = { "(" ~ (identifier | macro_identifier) ~ expr* ~ ")" }
+call   = { "(" ~ (identifier | macro_identifier) ~ expr* ~ ")" }
 lambda = { "(" ~ "&" ~ ident_list ~ list ~ ")" }
-macro = { "(" ~ "@" ~ ident_list ~ list ~ ")" }
+macro  = { "(" ~ "@" ~ ident_list ~ list ~ ")" }
 
-float = @{ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ | ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT*?}
-integer = @{ASCII_DIGIT+}
+float   = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ | ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT*? }
+integer = @{ ASCII_DIGIT+ }
 
-string = @{"\"" ~ (!"\"" ~ ANY)* ~ "\""}
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
-bool = {true | false}
-true = {"true"}
-false = {"false"}
-nil = {"nil"}
+bool  = { true | false }
+true  = { "true" }
+false = { "false" }
+nil   = { "nil" }
 
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{"#[" ~ (!"]#" ~ ANY)* ~ "]#" | "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE}
