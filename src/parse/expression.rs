@@ -1,8 +1,8 @@
-use std::fmt::Display;
+use std::{fmt::Display, iter::zip};
 
 use pest::iterators::Pair;
 
-use crate::{eval::symbol_table::SymbolTable, error::LSHError};
+use crate::{eval::{symbol_table::SymbolTable, self, eval}, error::LSHError};
 
 use super::Rule;
 
@@ -48,7 +48,7 @@ pub enum Macro {
 }
 
 
-pub type NativeFunction = fn(&SymbolTable, Vec<Expression>) -> Result<Expression, LSHError>;
+pub type NativeFunction = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHError>;
 
 #[derive(Debug, Clone)]
 pub struct DefinedFunction {
@@ -238,6 +238,33 @@ impl From<Pair<'_, Rule>> for Expression {
             Rule::string => Expression::String(value.as_span().as_str().to_string()),
             Rule::bool => Expression::Bool(value.as_span().as_str().parse().unwrap()),
             _ => panic!("Rule {:?} can't be converted to a value. In {}", value.as_rule(), value.as_str())
+        }
+    }
+}
+
+impl Into<Vec<Expression>> for Expression {
+    fn into(self) -> Vec<Expression> {
+        match self {
+            Expression::List(list) | Expression::DataList(list) => list,
+            Expression::SymbolList(list) => list.into_iter().map(|symbol| Expression::Symbol(symbol)).collect(),
+            expr => vec![expr]
+        }
+    }
+}
+
+impl Function {
+    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHError> {
+        match self {
+            Function::Native(native) => native(table, args),
+            Function::Defined(defined) => {
+                if args.len() != defined.params.len() {
+                    Err(LSHError::wrong_arg_count(defined.params.len(), args.len()))
+                } else {
+                    zip(defined.params.clone(), args).for_each(|(symbol, expression)| table.set(symbol, expression));
+
+                    eval(table, *defined.body.clone())
+                }
+            },
         }
     }
 }
