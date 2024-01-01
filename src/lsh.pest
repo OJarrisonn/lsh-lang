@@ -23,7 +23,7 @@ list = { "(" ~ expr* ~ ")"}
 data_list = { "[" ~ expr* ~ "]" }
 ident_list = { "(" ~ identifier* ~ ")" }
 
-call = { "(" ~ (identifier | operator | macro_identifier) ~ expr* ~ ")" }
+call = { "(" ~ (identifier | macro_identifier) ~ expr* ~ ")" }
 lambda = { "(" ~ "&" ~ ident_list ~ list ~ ")" }
 macro = { "(" ~ "@" ~ ident_list ~ list ~ ")" }
 
