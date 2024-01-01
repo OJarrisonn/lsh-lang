@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parse::{Symbol, Expression};
+use crate::parse::expression::{Symbol, Expression};
 
 pub struct SymbolTable(HashMap<Symbol, Expression>);
 
