@@ -1,12 +1,18 @@
-use pest::Parser;
-use pest_derive::Parser;
+pub mod eval;
+pub mod parse;
+pub mod symbol_table;
+pub mod error;
 
-pub mod ast;
+#[cfg(test)]
+mod tests {
+    use std::fs;
 
-#[derive(Parser)]
-#[grammar = "lsh.pest"]
-pub struct LSHParser;
+    use super::*;
 
-pub fn parse(source: String) {
-    let a = LSHParser::parse(Rule::program, &source);
+    #[test]
+    fn parse_file() {
+        let source = fs::read_to_string("./tests/.lshrc").unwrap();
+        
+        println!("{:?}", parse::parse(&source));
+    }
 }
