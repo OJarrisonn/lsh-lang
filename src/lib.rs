@@ -1,6 +1,5 @@
 pub mod eval;
 pub mod parse;
-pub mod symbol_table;
 pub mod error;
 
 #[cfg(test)]
@@ -11,8 +10,8 @@ mod tests {
 
     #[test]
     fn parse_file() {
-        let source = fs::read_to_string("./tests/.lshrc").unwrap();
+        let source = fs::read_to_string("./tests/printf_macro.lsh").unwrap();
         
-        println!("{:?}", parse::parse(&source));
+        println!("{:#?}", parse::parse(&source));
     }
 }
