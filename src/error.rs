@@ -7,7 +7,8 @@ pub enum LSHErrorKind {
     Generic,
     Arguments,
     Symbol,
-    Type
+    Type,
+    Macro
 }
 
 #[derive(Debug)]
@@ -22,7 +23,8 @@ impl Display for LSHErrorKind {
             Self::Generic => "Generic",
             Self::Arguments => "ArgumentMismatch",
             Self::Symbol => "Symbol",
-            Self::Type => "Type"
+            Self::Type => "Type",
+            Self::Macro => "Macro"
         })
     }
 }
@@ -48,6 +50,13 @@ impl LSHError {
         }
     }
 
+    pub fn not_a_macro(expr: Expression) -> Self {
+        Self {
+            kind: LSHErrorKind::Type,
+            msg: format!("The provided expression {expr} is not a macro", )
+        }
+    }
+
     pub fn not_a_function(expr: Expression) -> Self {
         Self {
             kind: LSHErrorKind::Type,
@@ -58,7 +67,14 @@ impl LSHError {
     pub fn unexpected_arg_type(arg: Symbol) -> Self {
         Self {
             kind: LSHErrorKind::Arguments,
-            msg: format!("The provided argument for {} doesn't fit the expectations", arg)
+            msg: format!("The provided argument for {arg} doesn't fit the expectations")
+        }
+    }
+
+    pub fn macro_remainder_not_appliable(expr: Expression) -> Self {
+        Self {
+            kind: LSHErrorKind::Macro,
+            msg : format!("The expression {expr} can't contain a macro remainder")
         }
     }
 }

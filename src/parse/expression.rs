@@ -2,7 +2,7 @@ use std::{fmt::Display, iter::zip};
 
 use pest::iterators::Pair;
 
-use crate::{eval::{symbol_table::SymbolTable, self, eval}, error::LSHError};
+use crate::{eval::{symbol_table::SymbolTable, eval}, error::LSHError};
 
 use super::Rule;
 
@@ -56,7 +56,7 @@ pub struct DefinedFunction {
     body: Box<Expression>
 }
 
-pub type NativeMacro = fn(Vec<Expression>) -> Result<Expression, LSHError>;
+pub type NativeMacro = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHError>;
 
 #[derive(Debug, Clone)]
 pub struct DefinedMacro {
@@ -235,7 +235,7 @@ impl From<Pair<'_, Rule>> for Expression {
             Rule::macro_remainder => Expression::MacroRemainder,
             Rule::float => Expression::Float(value.as_span().as_str().parse().unwrap()),
             Rule::integer => Expression::Integer(value.as_span().as_str().parse().unwrap()),
-            Rule::string => Expression::String(value.as_span().as_str().to_string()),
+            Rule::string => Expression::String((&(value.as_span().as_str())[1..(value.as_span().as_str().len()-1)]).to_string()),
             Rule::bool => Expression::Bool(value.as_span().as_str().parse().unwrap()),
             _ => panic!("Rule {:?} can't be converted to a value. In {}", value.as_rule(), value.as_str())
         }
@@ -264,6 +264,115 @@ impl Function {
 
                     eval(table, *defined.body.clone())
                 }
+            },
+        }
+    }
+}
+
+impl Macro {
+    fn apply_remainder(expr: Expression, remainder: Vec<Expression>) -> Expression {
+        match expr {
+            Expression::List(list) => Expression::List(Macro::replace_remainder(list, remainder)),
+            Expression::DataList(list) => Expression::DataList(Macro::replace_remainder(list, remainder)),
+            Expression::SymbolList(list) => Expression::SymbolList(
+                Macro::replace_remainder(list.into_iter().map(|s| Expression::Symbol(s)).collect(), remainder).into_iter()
+                    .map(|e| match e {
+                        Expression::Symbol(s) => s,
+                        e => {
+                            eprintln!("Unexpected not symbol in macro remainder replacing. {e}");
+                            Symbol::Identifier("".to_string())
+                        }
+                    }).collect()
+            ),
+            Expression::Call(call) => match call {
+                Call::FunctionCall(s, args) => Expression::Call(Call::FunctionCall(s, Macro::replace_remainder(args, remainder))),
+                Call::MacroCall(s, args) => Expression::Call(Call::MacroCall(s, Macro::replace_remainder(args, remainder))),
+            },
+            Expression::Function(func) => match func {
+                Function::Native(_) => panic!("You shouldn't be able to call an apply_remainder in a NativeFunction definition"),
+                Function::Defined(defined) => {
+                    Expression::Function(
+                        Function::Defined(DefinedFunction { 
+                            params: Macro::replace_remainder(defined.params.into_iter().map(|s| Expression::Symbol(s)).collect(), remainder.clone()).into_iter()
+                            .map(|e| match e {
+                                Expression::Symbol(s) => s,
+                                e => {
+                                    eprintln!("Unexpected not symbol in macro remainder replacing. {e}");
+                                    Symbol::Identifier("".to_string())
+                                }
+                            }).collect(), 
+                            body: Box::new(Macro::apply_remainder(*defined.body, remainder)) 
+                        })
+                    )
+                },
+            },
+            Expression::Macro(_) => panic!("No nested macro definition allowed"),
+            expr => expr
+        }
+    }
+
+    fn replace_remainder(list: Vec<Expression>, remainder: Vec<Expression>) -> Vec<Expression> {
+        let mut list = list;
+        
+        let mut id = 0;
+        while id < list.len() {
+            if let Expression::MacroRemainder = list[id] {
+                list.splice(id..=id, remainder.clone());
+                id += remainder.len();
+            } else {
+                id += 1;
+            }
+        }
+
+        list
+    }
+
+    fn replace_symbol(expr: Expression, symbol: &Symbol, apply: &Expression) -> Expression {
+        match expr {
+            Expression::List(list) => Expression::List(list.into_iter()
+                .map(|e| Macro::replace_symbol(e, symbol, apply))
+                .collect()),
+            Expression::DataList(list) => Expression::DataList(list.into_iter()
+                .map(|e| Macro::replace_symbol(e, symbol, apply))
+                .collect()),
+            Expression::Call(call) => Expression::Call(match call {
+                Call::FunctionCall(s, args) => Call::FunctionCall(s, args.into_iter()
+                    .map(|e| Macro::replace_symbol(e, symbol, apply))
+                    .collect()),
+                Call::MacroCall(s, args) => Call::MacroCall(s, args.into_iter()
+                    .map(|e| Macro::replace_symbol(e, symbol, apply))
+                    .collect()),
+            }),
+            Expression::Symbol(local) => if local == *symbol { apply.clone() } else { Expression::Symbol(local) },
+            expr => expr
+        }
+    }
+
+    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHError> {
+        match self {
+            Macro::Native(native) => {
+                native(table, args)
+            },
+            Macro::Defined(defined) => {
+                let remainder_len = args.len() as isize - defined.params.len() as isize;
+
+                if remainder_len < 0 {
+                    return Err(LSHError::wrong_arg_count(defined.params.len(), args.len()));
+                } 
+                
+                let mut body = (*defined.body).clone();
+
+                for (symbol, apply) in zip(&defined.params, &args[..(remainder_len as usize)]) {
+                    body = Macro::replace_symbol(body, symbol, apply);
+                }
+
+                if remainder_len != 0 {
+                    let remainder = (&args[defined.params.len()..]).to_vec();
+                    
+                    body = Macro::apply_remainder(body, remainder);
+                }
+
+                eval(table, body)
             },
         }
     }

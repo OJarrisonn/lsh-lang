@@ -1,11 +1,10 @@
 use pest::iterators::Pairs;
 
-use crate::{parse::{Rule, expression::{Expression, Call}}, error::LSHError};
+use crate::{parse::{Rule, expression::{Expression, Call, Function}}, error::LSHError};
 
 use self::symbol_table::SymbolTable;
 
 pub mod symbol_table;
-mod native_functions;
 
 pub fn eval(table: &mut SymbolTable, expr: Expression) -> Result<Expression, LSHError> {
     match expr {
@@ -63,11 +62,19 @@ pub fn eval(table: &mut SymbolTable, expr: Expression) -> Result<Expression, LSH
                     }
 
                 },
-                Call::MacroCall(symbol, args) => todo!(),
+                Call::MacroCall(symbol, args) => {
+                    let mac = eval(table, Expression::Symbol(symbol));
+
+                    match mac {
+                        Err(e) => Err(e),
+                        Ok(mac) => match mac {
+                            Expression::Macro(mac) => mac.exec(table, args),
+                            _ => Err(LSHError::not_a_macro(mac))
+                        },
+                    }
+                },
             }
         },
-        Expression::Function(_) => todo!(),
-        Expression::Macro(_) => todo!(),
         Expression::Symbol(symbol) => {
             match table.get(&symbol) {
                 Some(value) => Ok(value),

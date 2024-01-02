@@ -1,6 +1,7 @@
 pub mod eval;
 pub mod parse;
 pub mod error;
+pub mod stl;
 
 #[cfg(test)]
 mod tests {
@@ -22,7 +23,44 @@ mod tests {
         let source = fs::read_to_string("./tests/sum.lsh").unwrap();
         let parsed = parse::parse(&source);
         let mut table = SymbolTable::new();
-        table.init_native_functions();
+        table.load_stl_math();
+
+        let result = eval::eval(&mut table, parsed.unwrap());
+
+        dbg!(result);
+    }
+
+    #[test]
+    fn math() {
+        let source = fs::read_to_string("./tests/math.lsh").unwrap();
+        let parsed = parse::parse(&source);
+        let mut table = SymbolTable::new();
+        table.load_stl_math();
+
+        let result = eval::eval(&mut table, parsed.unwrap());
+
+        dbg!(result);
+    }
+
+
+    #[test]
+    fn def() {
+        let source = fs::read_to_string("./tests/def.lsh").unwrap();
+        let parsed = parse::parse(&source);
+        let mut table = SymbolTable::new();
+        table.load_stl();
+
+        let result = eval::eval(&mut table, parsed.unwrap());
+
+        dbg!(result);
+    }
+
+    #[test]
+    fn print() {
+        let source = fs::read_to_string("./tests/print.lsh").unwrap();
+        let parsed = parse::parse(&source);
+        let mut table = SymbolTable::new();
+        table.load_stl();
 
         let result = eval::eval(&mut table, parsed.unwrap());
 

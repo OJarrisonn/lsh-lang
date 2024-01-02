@@ -1,0 +1,7 @@
+(
+  (@def name "Jorge Harrisonn")
+  (@def age 19)
+  (print "Hello! " "My name is " name ". Nice to meet you! I am " age " years old") # Just testing
+  (@def age 20)
+  (print "This year i'll turn " age ". I'll be " (if (> age 19) "old" "young"))
+)

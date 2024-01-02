@@ -1,0 +1,4 @@
+(
+    (@def euler 2.78)
+    (+ euler 0)
+)
