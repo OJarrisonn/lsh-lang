@@ -3,78 +3,62 @@ use std::fmt::Display;
 use crate::parse::expression::{Symbol, Expression};
 
 #[derive(Debug)]
-pub enum LSHErrorKind {
-    Generic,
-    Arguments,
-    Symbol,
-    Type,
-    Macro
+pub enum LSHRuntimeErrorKind<'a> {
+    Generic(String), // A message explaining what happened
+    UndefinedIdentifier(&'a Symbol), // Which symbol is undefined
+    MutatingImmutable(&'a Symbol), // Which symbol was violated
+    NotCallable(&'a Expression), // The expression that isn't callable
+    TooManyArguments(usize, usize), // The expected amount, the amount got
+    IncompatibleArgument(&'a Expression, String) // The argument got, and a message of how to fix it
 }
 
 #[derive(Debug)]
-pub struct LSHError {
-    pub kind: LSHErrorKind,
-    pub msg: String
+pub struct LSHRuntimeErrorStack<'a> {
+    kind: Option<LSHRuntimeErrorKind<'a>>,
+    from: Option<Box<LSHRuntimeErrorStack<'a>>>,
+    place: &'a str,
+    point: (usize, usize)
 }
 
-impl Display for LSHErrorKind {
+impl Display for LSHRuntimeErrorKind<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}Error", match self {
-            Self::Generic => "Generic",
-            Self::Arguments => "ArgumentMismatch",
-            Self::Symbol => "Symbol",
-            Self::Type => "Type",
-            Self::Macro => "Macro"
+        write!(f, "{}", match self {
+            Self::Generic(msg) => format!("GenericError: {msg}"),
+            Self::UndefinedIdentifier(symbol) => format!("UndefinedIdentifier: {symbol} isn't defined in the current scope or in any other level above"),
+            Self::MutatingImmutable(symbol) => format!("MutatingImmutable: Trying to mutate {symbol} which is immutable"),
+            Self::NotCallable(expr) => format!("NotCallable: Trying to call an expression that isn't callable of type {}", expr.type_name()),
+            Self::TooManyArguments(expected, got) => format!("TooManyArguments: Passed {got} arguments to a call that expected {expected}"),
+            Self::IncompatibleArgument(expr, msg) => format!("IncompatibleArgument: The expression `{expr}` was passed as an argument to a call, but it's not acceptable. {}", msg)
         })
     }
 }
 
-impl Display for LSHError {
+impl<'a> Display for LSHRuntimeErrorStack<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.kind, self.msg)
+        if self.kind.is_some() {
+            write!(f, "{}\nAt {}, {} :: {}", self.kind.unwrap(), self.point.0, self.point.1, self.place)
+        } else {
+            write!(f, "{}\nAt {}, {} :: {}", self.from.unwrap(), self.point.0, self.point.1, self.place)
+        }
     }
 }
 
-impl LSHError {
-    pub fn wrong_arg_count(expected: usize, got: usize) -> Self {
+impl<'a> LSHRuntimeErrorStack<'a> {
+    pub fn create_source(place: &'a str, point: (usize, usize), kind: LSHRuntimeErrorKind<'a>) -> Self {
         Self {
-            kind: LSHErrorKind::Arguments,
-            msg: format!("Expected {expected}, but got {got}"),
+            place,
+            point,
+            kind: Some(kind), 
+            from: None
         }
     }
 
-    pub fn undefined_symbol(symbol: Symbol) -> Self {
+    pub fn create_stream(place: &'a str, point: (usize, usize), from: LSHRuntimeErrorStack<'a>) -> Self {
         Self {
-            kind: LSHErrorKind::Symbol,
-            msg: format!("Symbol {symbol} is not defined")
-        }
-    }
-
-    pub fn not_a_macro(expr: Expression) -> Self {
-        Self {
-            kind: LSHErrorKind::Type,
-            msg: format!("The provided expression {expr} is not a macro", )
-        }
-    }
-
-    pub fn not_a_function(expr: Expression) -> Self {
-        Self {
-            kind: LSHErrorKind::Type,
-            msg: format!("The provided expression {expr} is not a function", )
-        }
-    }
-
-    pub fn unexpected_arg_type(arg: Symbol) -> Self {
-        Self {
-            kind: LSHErrorKind::Arguments,
-            msg: format!("The provided argument for {arg} doesn't fit the expectations")
-        }
-    }
-
-    pub fn macro_remainder_not_appliable(expr: Expression) -> Self {
-        Self {
-            kind: LSHErrorKind::Macro,
-            msg : format!("The expression {expr} can't contain a macro remainder")
+            place,
+            point,
+            kind: None,
+            from: Some(Box::new(from))
         }
     }
 }
