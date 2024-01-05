@@ -17,7 +17,8 @@ pub struct LSHRuntimeErrorStack<'a> {
     kind: Option<LSHRuntimeErrorKind<'a>>,
     from: Option<Box<LSHRuntimeErrorStack<'a>>>,
     place: &'a str,
-    point: (usize, usize)
+    point: (usize, usize),
+    note: Option<String>
 }
 
 impl Display for LSHRuntimeErrorKind<'_> {
@@ -36,9 +37,27 @@ impl Display for LSHRuntimeErrorKind<'_> {
 impl<'a> Display for LSHRuntimeErrorStack<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.kind.is_some() {
-            write!(f, "{}\nAt {}, {} :: {}", self.kind.unwrap(), self.point.0, self.point.1, self.place)
+            write!(f, "{}\nAt {}, {} :: {} {}",
+                self.kind.unwrap(), 
+                self.point.0, 
+                self.point.1, 
+                self.place, 
+                if self.note.is_some() {
+                    self.note.unwrap()
+                } else {
+                    String::new()
+                })
         } else {
-            write!(f, "{}\nAt {}, {} :: {}", self.from.unwrap(), self.point.0, self.point.1, self.place)
+            write!(f, "{}\nAt {}, {} :: {} {}", 
+                self.from.unwrap(), 
+                self.point.0, 
+                self.point.1, 
+                self.place, 
+                if self.note.is_some() {
+                    self.note.unwrap()
+                } else {
+                    String::new()
+                })
         }
     }
 }
@@ -49,7 +68,8 @@ impl<'a> LSHRuntimeErrorStack<'a> {
             place,
             point,
             kind: Some(kind), 
-            from: None
+            from: None,
+            note: None
         }
     }
 
@@ -58,7 +78,15 @@ impl<'a> LSHRuntimeErrorStack<'a> {
             place,
             point,
             kind: None,
-            from: Some(Box::new(from))
+            from: Some(Box::new(from)),
+            note: None
+        }
+    }
+
+    pub fn append_note(self, note: String) -> Self {
+        Self {
+            note: Some(note),
+            ..self
         }
     }
 }
