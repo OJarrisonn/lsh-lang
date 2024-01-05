@@ -1,12 +1,11 @@
 expr = {
     call
   | list
-  | function
-  | macro
-  | macro_identifier
-  | identifier
+  | functiondef
+  | macrodef
   | data_list
   | macro_remainder
+  | identifier
   | float
   | integer
   | string
@@ -16,28 +15,26 @@ expr = {
 
 identifier = @{
     (!reserved_word ~ 'a'..'z' ~ ('a'..'z' | '0'..'9' | "-")* ~ "?"?)
-  | !reserved_operators ~ ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | "&" | "@")+
+  | ("+" | "-" | "*" | "/" | "\\" | "|" | "!" | "?" | "$" | "%" | "^" | "~" | ">" | "<" | "=" | "&" | "@")+
 }
 
-macro_identifier = @{ "@" ~ (!reserved_word ~ ('a'..'z') ~ ('a'..'z' | '0'..'9' | "-")*) }
-
 reserved_word      = { bool | nil | "func" | "macro"}
-reserved_operators = { macro_remainder | "@" }
 
 list       = { "(" ~ expr* ~ ")" }
 data_list  = { "[" ~ expr* ~ "]" }
 ident_list = { "(" ~ identifier* ~ ")" }
-macro_remainder = {"..."}
+macro_remainder = @{identifier ~ "..."}
 
 
-call   = { "(" ~ (macro_identifier | identifier) ~ expr* ~ ")" }
-function = { "(" ~ "func" ~ ident_list ~ list ~ ")" }
-macro  = { "(" ~ "macro" ~ ident_list ~ list ~ ")" }
+call   = { "(" ~ identifier ~ expr* ~ ")" }
+functiondef = { "(" ~ "func" ~ ident_list ~ expr ~ ")" }
+macrodef  = { "(" ~ "macro" ~ ident_list ~ expr ~ ")" }
 
 float   = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ | ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT*? }
 integer = @{ ASCII_DIGIT+ }
 
-string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+string = ${ "\"" ~ string_inner ~ "\"" }
+string_inner = @{(!"\"" ~ ANY)*}
 
 bool  = { true | false }
 true  = { "true" }
