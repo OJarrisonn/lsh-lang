@@ -2,15 +2,12 @@ use std::{fmt::Display, iter::zip};
 
 use pest::iterators::Pair;
 
-use crate::{eval::{symbol_table::SymbolTable, eval}, error::LSHError};
+use crate::{eval::{symbol_table::SymbolTable, eval}, error::{LSHRuntimeErrorStack, LSHRuntimeErrorKind}};
 
 use super::Rule;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Symbol {
-    Identifier(String),
-    MacroIdentifier(String)
-}
+pub struct Symbol(String);
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -48,7 +45,7 @@ pub enum Macro {
 }
 
 
-pub type NativeFunction = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHError>;
+pub type NativeFunction = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHRuntimeErrorStack>;
 
 #[derive(Debug, Clone)]
 pub struct DefinedFunction {
@@ -56,7 +53,7 @@ pub struct DefinedFunction {
     body: Box<Expression>
 }
 
-pub type NativeMacro = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHError>;
+pub type NativeMacro = fn(&mut SymbolTable, Vec<Expression>) -> Result<Expression, LSHRuntimeErrorStack>;
 
 #[derive(Debug, Clone)]
 pub struct DefinedMacro {
@@ -67,23 +64,22 @@ pub struct DefinedMacro {
 
 impl Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Symbol::Identifier(s) => s,
-            Symbol::MacroIdentifier(s) => s
-        })
+        write!(f, "{}", &self.0)
     }
 }
 
 impl From<Pair<'_, Rule>> for Symbol {
     fn from(value: Pair<'_, Rule>) -> Self {
-        if value.as_rule() != Rule::identifier || value.as_rule() != Rule::macro_identifier {
-        }
-        
         match value.as_rule() {
-            Rule::identifier => Self::Identifier(value.as_span().as_str().to_string()),
-            Rule::macro_identifier => Self::MacroIdentifier(value.as_span().as_str().to_string()),
+            Rule::identifier => Self(value.as_span().as_str().to_string()),
             _ => panic!("Can't get symbol out of not a symbol")
         }
+    }
+}
+
+impl<'a> From<&'a str> for Symbol {
+    fn from(value: &'a str) -> Self {
+        Self(value.to_string())
     }
 }
 
@@ -173,14 +169,7 @@ impl From<Pair<'_, Rule>> for Expression {
         match value.as_rule() {
             Rule::expr => Self::from(value.into_inner().next().unwrap()),
             Rule::identifier => Self::Symbol(
-                Symbol::Identifier(
-                    value.as_span().as_str().to_string()
-                )
-            ),
-            Rule::macro_identifier => Self::Symbol(
-                Symbol::MacroIdentifier(
-                    value.as_span().as_str().to_string()
-                )
+                Symbol::from(value.as_span().as_str())
             ),
             Rule::list => Expression::List(value.into_inner()
                                             .map(|expr| Self::from(expr))
@@ -197,7 +186,7 @@ impl From<Pair<'_, Rule>> for Expression {
 
                 match head { // Check the first element in the call and make the right Call expression
                     symb if Rule::identifier == symb.as_rule() => {
-                        let ident = Symbol::Identifier(symb.as_span().as_str().to_string());
+                        let ident = Symbol::from(symb.as_span().as_str());
                         let args = value.into_iter()
                             .map(|p| Expression::from(p))
                             .collect();
@@ -205,27 +194,18 @@ impl From<Pair<'_, Rule>> for Expression {
 
                         Expression::Call(Call::FunctionCall(ident, args))
                     },
-                    symb if Rule::macro_identifier == symb.as_rule() => {
-                        let ident = Symbol::MacroIdentifier(symb.as_span().as_str().to_string());
-                        let args = value.into_iter()
-                            .map(|p| Expression::from(p))
-                            .collect();
-
-
-                        Expression::Call(Call::MacroCall(ident, args))
-                    },
                     value => panic!("First element of a call must be a symbol, not a {value}")
                 }
                 
             },
-            Rule::function => {
+            Rule::functiondef => {
                 let mut value = value.into_inner();
                 let params = Expression::from(value.next().unwrap()).get_symbol_list().clone();
                 let body = Box::new(Expression::from(value.next().unwrap()));
 
                 Expression::Function(Function::Defined(DefinedFunction { params , body }))
             },
-            Rule::r#macro => {
+            Rule::macrodef => {
                 let mut value = value.into_inner();
                 let params = Expression::from(value.next().unwrap()).get_symbol_list().clone();
                 let body = Box::new(Expression::from(value.next().unwrap()));
@@ -235,7 +215,8 @@ impl From<Pair<'_, Rule>> for Expression {
             Rule::macro_remainder => Expression::MacroRemainder,
             Rule::float => Expression::Float(value.as_span().as_str().parse().unwrap()),
             Rule::integer => Expression::Integer(value.as_span().as_str().parse().unwrap()),
-            Rule::string => Expression::String((&(value.as_span().as_str())[1..(value.as_span().as_str().len()-1)]).to_string()),
+            Rule::string => Expression::from(value.into_inner().next().unwrap()),
+            Rule::string_inner => Expression::String(value.as_span().as_str().to_string()),
             Rule::bool => Expression::Bool(value.as_span().as_str().parse().unwrap()),
             _ => panic!("Rule {:?} can't be converted to a value. In {}", value.as_rule(), value.as_str())
         }
@@ -253,12 +234,17 @@ impl Into<Vec<Expression>> for Expression {
 }
 
 impl Function {
-    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHError> {
+    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHRuntimeErrorStack> {
         match self {
             Function::Native(native) => native(table, args),
             Function::Defined(defined) => {
                 if args.len() != defined.params.len() {
-                    Err(LSHError::wrong_arg_count(defined.params.len(), args.len()))
+                    Err(LSHRuntimeErrorStack
+                        ::create_source(
+                            "u", 
+                            (0,0),
+                            LSHRuntimeErrorKind::TooManyArguments(defined.params.len(), args.len()) 
+                        ))
                 } else {
                     zip(defined.params.clone(), args).for_each(|(symbol, expression)| table.set(symbol, expression));
 
@@ -280,7 +266,7 @@ impl Macro {
                         Expression::Symbol(s) => s,
                         e => {
                             eprintln!("Unexpected not symbol in macro remainder replacing. {e}");
-                            Symbol::Identifier("".to_string())
+                            Symbol("".to_string())
                         }
                     }).collect()
             ),
@@ -298,7 +284,7 @@ impl Macro {
                                 Expression::Symbol(s) => s,
                                 e => {
                                     eprintln!("Unexpected not symbol in macro remainder replacing. {e}");
-                                    Symbol::Identifier("".to_string())
+                                    Symbol("".to_string())
                                 }
                             }).collect(), 
                             body: Box::new(Macro::apply_remainder(*defined.body, remainder)) 
@@ -348,7 +334,7 @@ impl Macro {
         }
     }
 
-    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHError> {
+    pub fn exec(&self, table: &mut SymbolTable, args: Vec<Expression>) -> Result<Expression, LSHRuntimeErrorStack> {
         match self {
             Macro::Native(native) => {
                 native(table, args)
@@ -357,7 +343,12 @@ impl Macro {
                 let remainder_len = args.len() as isize - defined.params.len() as isize;
 
                 if remainder_len < 0 {
-                    return Err(LSHError::wrong_arg_count(defined.params.len(), args.len()));
+                    return Err(LSHRuntimeErrorStack
+                        ::create_source(
+                            "u",
+                            (0,0),
+                            LSHRuntimeErrorKind::TooManyArguments(defined.params.len(), args.len())
+                        ));
                 } 
                 
                 let mut body = (*defined.body).clone();
